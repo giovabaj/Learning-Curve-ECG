@@ -18,7 +18,7 @@ class FocalLoss(torch.nn.Module):
 
 
 class WBCELoss(torch.nn.Module):
-    def __init__(self, w_p = None, w_n = None):
+    def __init__(self, w_p=None, w_n=None):
         super(WBCELoss, self).__init__()
         self.w_p = w_p
         self.w_n = w_n

@@ -90,9 +90,9 @@ def train(model, train_loader, validation_loader, loss, optimizer,
         validation_losses[i], validation_auc[i] = validation_single_epoch(model, validation_loader, loss, device)
         print(f"Epoch {i + 1} completed. Training auc: {train_auc[i]}, Validation auc: {validation_auc[i]}")
         early_stopper(-validation_auc[i], model)
-        if validation_auc[i] > 0.9:
-            print("Patience set to 200")
-            early_stopper.patience = 200
+        if validation_auc[i] > 0.9 and early_stopper.patience > 50:
+            print("Patience set to 50")
+            early_stopper.patience = 50
         if early_stopper.early_stop:
             print("Early stopping")
             break

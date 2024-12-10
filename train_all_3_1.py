@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader
 
-from architectures import LstmNetwork
+from architectures import LstmNetwork, GoodfellowNet
 from arg_parser import get_path_results
 from datasets import EcgDataset
 from loss import WBCELoss
@@ -26,13 +26,13 @@ from train import train
 path_data = 'data/data_ecg.npy'
 path_labels = 'data/labels_ecg.npy'
 lr = 1e-2
-patience = 300
+patience = 100
 n_epochs = 1000
-n_reps = 100
-val_frac = 0.2
+n_reps = 5
+val_frac = 0.3
 augment = True
 std_augm = 0.0002
-n_samples = 1000
+n_samples = 80254
 batch_size = 32
 weight_decay = 0.05
 p_dropout = 0.4
@@ -74,7 +74,7 @@ data_sample = data[ids, :]
 labels_sample = labels[ids]
 
 # sizes considered
-sizes = [500, 550, 600, 650, 700, 750, 800]
+sizes = [70000]
 
 # All indices
 all_ids = np.arange(len(ids))
@@ -135,37 +135,40 @@ for i_size, size in enumerate(sizes):
         print("# val samples: ", len(val_dataset), " , AF frac: ", sum(val_dataset.labels) / len(val_dataset))
 
         # Define data loaders for training and testing data in this fold
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1024, shuffle=False)
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1024, shuffle=False)
 
         # -- Instantiate model, loss function and optimizer ---
-        in_channels = [1, 96, 48, 32]
-        out_channels = [96, 48, 32, 24]
-        dilation_rate = [1, 4, 4, 6]
-        kernel_size = [8, 6, 6, 4]
-        max_pooling = [0, 0, 0, 16]
-        stride = [1, 1, 1, 1, 1]
-        ratio = 1.25
-        num_layers = 1
-        bidirectional = False
-        many_to_many = False
-        in_len = 1280
+        # in_channels = [1, 96, 48, 32]
+        # out_channels = [96, 48, 32, 24]
+        # dilation_rate = [1, 4, 4, 6]
+        # kernel_size = [8, 6, 6, 4]
+        # max_pooling = [0, 0, 0, 16]
+        # stride = [1, 1, 1, 1, 1]
+        # ratio = 1.25
+        # num_layers = 1
+        # bidirectional = False
+        # many_to_many = False
+        # in_len = 1280
+        # wp = 0.75  # Best .75
+        #
+        # model = LstmNetwork(in_channels=in_channels,
+        #                     out_channels=out_channels,
+        #                     dilation=dilation_rate,
+        #                     kernel_size=kernel_size,
+        #                     max_pooling=max_pooling,
+        #                     stride=stride,
+        #                     ratio=ratio,
+        #                     num_layers=num_layers,
+        #                     many_to_many=many_to_many,
+        #                     bidirectional=bidirectional,
+        #                     in_len=in_len,
+        #                     p_dropout=p_dropout)
+
+        model = GoodfellowNet()
+
         wp = 0.75  # Best .75
-
-        model = LstmNetwork(in_channels=in_channels,
-                            out_channels=out_channels,
-                            dilation=dilation_rate,
-                            kernel_size=kernel_size,
-                            max_pooling=max_pooling,
-                            stride=stride,
-                            ratio=ratio,
-                            num_layers=num_layers,
-                            many_to_many=many_to_many,
-                            bidirectional=bidirectional,
-                            in_len=in_len,
-                            p_dropout=p_dropout)
-
         loss = WBCELoss(w_p=wp, w_n=1 - wp)
         optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
         lr_sched = CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=2, eta_min=0)
