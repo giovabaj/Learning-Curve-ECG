@@ -65,7 +65,7 @@ class GoodfellowNet(Module):
         max_pooling = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0]
         # Convolutional layers
         blocks = [block(in_channels=in_channels[i], out_channels=out_channels[i], kernel_size=kernel_size[i],
-                        dilation_rate=dilation_rate[i], maxpooling=max_pooling[i], p_dropout=self.p_dropout)
+                        dilation_rate=dilation_rate[i], max_pooling=max_pooling[i], p_dropout=self.p_dropout)
                   for i in range(13)]
         self.conv_blocks = Sequential(*blocks)
         # Layers after convolutions
