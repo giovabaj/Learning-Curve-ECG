@@ -56,20 +56,18 @@ def get_path_results(parent_results_folder, n):
      - results folder path
     """
     # Set directory name based on number of samples
-    results_folder = parent_results_folder + str(n) + "_" + str(date.today())
-
-    path_res = os.getcwd() + "/" + results_folder
+    results_folder = os.path.join(parent_results_folder, f"{n}_{date.today()}")
+    path_res = results_folder
 
     # Make directory avoiding over-writing
     if not os.path.exists(path_res):
-        path_res = path_res + "/"
         os.makedirs(path_res)  # if dir does not exist, I create it
     else:  # if it exists, I create "dir_1", if already existing I create "dir_2"....
         i = 1
-        path_res = path_res + "_" + str(i) + "/"
+        path_res = path_res + f"_{i}"
         while os.path.exists(path_res):
             i = i + 1
-            path_res = os.getcwd() + "/" + results_folder + "_" + str(i) + "/"
+            path_res = results_folder + f"_{i}"
         os.makedirs(path_res)
 
     return path_res
