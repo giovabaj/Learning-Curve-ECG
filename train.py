@@ -1,28 +1,24 @@
 import torch
+from torch import nn
+from torch.utils.data import DataLoader
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LRScheduler
 import numpy as np
 from early_stopping import EarlyStopping
 from sklearn.metrics import roc_auc_score
-import os
+from os.path import join
 
 
-def save_checkpoint_last_it(epoch, model, scheduler, optimizer, path, early_stopping_counter):
-    if scheduler is not None:
-        torch.save(scheduler.state_dict(), path + '_scheduler.pt')
-    torch.save(model.state_dict(), path + '_model.pt')
-    torch.save(optimizer.state_dict(), path + '_optimizer.pt')
-    torch.save(epoch, path + '_epoch.pt')
-    torch.save(early_stopping_counter, path + '_early_stopping.pt')
-
-
-def load_checkpoint_last_it(model, scheduler, optimizer, path):
-    if scheduler is not None:
-        scheduler.load_state_dict(torch.load(path + '_scheduler.pt'))
-    model.load_state_dict(torch.load(path + '_model.pt'))
-    optimizer.load_state_dict(torch.load(path + '_optimizer.pt'))
-    return int(torch.load(path + '_epoch.pt')) + 1, int(torch.load(path + '_early_stopping.pt'))
-
-
-def train_single_epoch(model, train_loader, loss, optimizer, device):
+def train_single_epoch(model: nn.Module, train_loader: DataLoader, loss: nn.Module, optimizer: Optimizer, device: str):
+    """
+    Train model for a single epoch
+    :param model: The model to be trained.
+    :param train_loader: DataLoader with training data.
+    :param loss: Loss function.
+    :param optimizer: Optimizer for updating model parameters.
+    :param device: Device to run the training on (e.g., "cpu" or "cuda").
+    :return: (1) Average loss over the epoch (2) ROC-AUC score computed from the true and predicted values.
+    """
     losses = []
     y_true_all = []
     y_scores_all = []
@@ -41,11 +37,18 @@ def train_single_epoch(model, train_loader, loss, optimizer, device):
         losses.append(l.item())
         l.backward()
         optimizer.step()
-
     return np.mean(np.array(losses)), roc_auc_score(y_true_all, y_scores_all)
 
 
-def validation_single_epoch(model, validation_loader, loss, device):
+def validation_single_epoch(model: nn.Module, validation_loader: DataLoader, loss: nn.Module, device: str):
+    """
+    Evaluates the model for a single epoch on the validation dataset.
+    :param model: The model to be evaluated.
+    :param validation_loader: DataLoader for the validation data.
+    :param loss: Loss function.
+    :param device: Device to run the evaluation on (e.g., "cpu" or "cuda").
+    :return: (1) Average loss of the validation set (2) ROC-AUC score computed from the true and predicted values.
+    """
     losses = []
     model.eval()
     y_true = []
@@ -61,30 +64,36 @@ def validation_single_epoch(model, validation_loader, loss, device):
             y_true += y_temp
             y_score += y_score_temp
         losses.append(l.item())
-
     return np.mean(np.array(losses)), roc_auc_score(np.array(y_true), np.array(y_score))
 
 
-def train(model, train_loader, validation_loader, loss, optimizer,
-          device, scheduler=None, num_epochs=50, path_res='train_out/', patience=5):
+def train(model: nn.Module, train_loader: DataLoader, validation_loader: DataLoader, loss: nn.Module,
+          optimizer: Optimizer, device: str, scheduler: LRScheduler = None, num_epochs: int = 50,
+          path_res: str = 'train_out/', patience: int = 5):
+    """
+    Trains a model over multiple epochs with early stopping and optional learning rate scheduling.
+    :param model: The model to be trained.
+    :param train_loader: DataLoader for the training data.
+    :param validation_loader: DataLoader for the validation data.
+    :param loss: Loss function to optimize.
+    :param optimizer: Optimizer for updating model parameters.
+    :param device: Device to run the training on (e.g., "cpu" or "cuda").
+    :param scheduler: Learning rate scheduler. Defaults to None.
+    :param num_epochs: Maximum number of training epochs. Defaults to 50.
+    :param path_res: Path to save training results and the best model. Defaults to 'train_out/'.
+    :param patience: Number of epochs to wait for improvement before early stopping. Defaults to 5.
+    :return: The trained model with the best validation performance (nn.Module).
+    """
     model.to(device)
-
+    # initialize arrays
     train_losses = np.ones(num_epochs) * np.inf
     validation_losses = np.ones(num_epochs) * np.inf
     train_auc = np.ones(num_epochs) * np.inf
     validation_auc = np.ones(num_epochs) * np.inf
 
-    path_checkpoints = path_res + 'checkpoint.pt'
+    path_checkpoints = join(path_res, 'checkpoint.pt')
     early_stopper = EarlyStopping(patience=patience, verbose=True, path=path_checkpoints)
-    path_last_it = path_res + 'last_it'
-    epoch_start = 0
-
-    if os.path.isfile(path_last_it + '_model.pt'):
-        print('Load state....')
-        epoch_start, early_stopper.counter = load_checkpoint_last_it(model,
-                                                                     scheduler, optimizer, path_last_it)
-
-    for i in range(epoch_start, num_epochs):
+    for i in range(0, num_epochs):
         model.train()
         train_losses[i], train_auc[i] = train_single_epoch(model, train_loader, loss, optimizer, device)
         validation_losses[i], validation_auc[i] = validation_single_epoch(model, validation_loader, loss, device)
@@ -99,26 +108,23 @@ def train(model, train_loader, validation_loader, loss, optimizer,
         if scheduler is not None:
             scheduler.step()
             print(optimizer.param_groups[0]["lr"])
-        save_checkpoint_last_it(i, model, scheduler, optimizer, path_last_it, early_stopper.counter)
 
     model.load_state_dict(torch.load(path_checkpoints))
-    torch.save(model.state_dict(), path_res + "best_model.pt")
-    np.save(path_res + "train_losses", train_losses)
-    np.save(path_res + "val_losses", validation_losses)
-    np.save(path_res + "train_auc", train_auc)
-    np.save(path_res + "val_auc", validation_auc)
-
+    torch.save(model.state_dict(), join(path_res, "best_model.pt"))
+    np.save(join(path_res, "train_losses"), train_losses)
+    np.save(join(path_res, "val_losses"), validation_losses)
+    np.save(join(path_res, "train_auc"), train_auc)
+    np.save(join(path_res, "val_auc"), validation_auc)
     return model
 
 
-def model_predictions(model, device, dataloader):
-    """Function to make predictions from a trained model.
-    Input:
-     - model: torch model to make predictions
-     - device: device to be used
-     - dataloader: torch DataLoader
-    Output:
-     - y_pred: predictions
+def model_predictions(model: nn.Module, device: str, dataloader: DataLoader):
+    """
+    Makes predictions from a trained model.
+    :param model: torch model to make predictions
+    :param device: device to be used
+    :param dataloader: torch DataLoader
+    :return: predictions and true labels
     """
     model.eval()  # evaluation mode
     model.to(device)  # putting model on device
