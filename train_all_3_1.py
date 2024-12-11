@@ -1,197 +1,134 @@
-"""In this version I switch the loops:
-- I fix a certain maximum sample size (e.g. 10000)
-- I
-- 
-"""
-import json
 import os
+from os.path import join
+import shutil
 import sys
 import time
+from argparse import ArgumentParser
 
+import yaml
 import numpy as np
-import torch
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
+import torch
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader
 
-from architectures import LstmNetwork, GoodfellowNet
+from architectures import GoodfellowNet
 from arg_parser import get_path_results
 from datasets import EcgDataset
 from loss import WBCELoss
 from train import model_predictions
 from train import train
 
-# Settings
-path_data = 'data/data_ecg.npy'
-path_labels = 'data/labels_ecg.npy'
-lr = 1e-2
-patience = 100
-n_epochs = 1000
-n_reps = 5
-val_frac = 0.3
-augment = True
-std_augm = 0.0002
-n_samples = 80254
-batch_size = 32
-weight_decay = 0.05
-p_dropout = 0.4
-random_seed = 45
 
-config = {
-    "lr": lr,
-    "patience": patience,
-    "n_epochs": n_epochs,
-    "n_reps": n_reps,
-    "random_seed": random_seed,
-    "batch_size": batch_size,
-    "size": n_samples,
-    "val_frac": val_frac,
-    "augment": augment,
-    "std_augm": std_augm,
-    "weight_decay": weight_decay,
-    "p_dropout": p_dropout
-}
+def main():
+    parser = ArgumentParser()
+    parser.add_argument("--config_path", help="Path to the config file", type=str)
+    args = parser.parse_args()
 
-# Setting the computation device and seeds
-device = "cuda:0" if torch.cuda.is_available() else "cpu"
-torch.manual_seed(random_seed)
-np.random.seed(random_seed)
+    # Load the config file
+    with open(args.config_path, "r") as file:
+        config = yaml.safe_load(file)
 
-# import signals and labels
-labels = np.load(path_labels)
-data = np.load(path_data)
+    # Setting the computation device and seeds
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    torch.manual_seed(config["random_seed"])
+    np.random.seed(config["random_seed"])
 
-# get random sample of the required size
-folds_file = 'folds' + str(n_samples) + '.json'
+    # import signals and labels
+    labels = np.load(config["path_labels"])
+    data = np.load(config["path_data"])
+    # get random sample of the required size
+    data_sample, _, labels_sample, _ = train_test_split(
+        data,
+        labels,
+        train_size=config["n_samples"],
+        # stratify=labels,  # Ensure class proportions are maintained
+        random_state=config["random_seed"]
+    )
 
-with open(folds_file) as file:
-    folds = json.load(file)
+    start_total = time.time()
+    for i_size, size in enumerate(config["sizes"]):  # Loop over sizes
+        print(f"--- {size} ---")
+        auc = np.zeros(config["n_reps"])  # initialize npy array with AUC values
 
-ids = folds["ids"]
-folds.pop('ids', None)
-data_sample = data[ids, :]
-labels_sample = labels[ids]
+        # set results folder's path
+        path_res = get_path_results(join(config["output_path"], f"sample_{config['n_samples']}"), size)
+        # Save config file to the results directory
+        shutil.copy(args.config_path, join(path_res, "config.json"))
 
-# sizes considered
-sizes = [70000]
+        for i_rep in range(config["n_reps"]):  # loop over repetitions
+            if i_rep % 10 == 0:
+                print(f"\t{i_rep}")
 
-# All indices
-all_ids = np.arange(len(ids))
+            # Train-test split
+            X_train, X_test, y_train, y_test = train_test_split(data_sample,
+                                                                labels_sample,
+                                                                train_size=size,
+                                                                stratify=labels_sample,
+                                                                )
+            # Train-validation split
+            X_train, X_val, y_train, y_val = train_test_split(X_train,
+                                                              y_train,
+                                                              test_size=config["val_frac"],
+                                                              stratify=y_train)
 
-start_total = time.time()
-# Loop over sizes
-for i_size, size in enumerate(sizes):
-    print(size)
+            train_dataset = EcgDataset(X_train, y_train, augment=config["augment"], std_augm=config["std_augm"])
+            val_dataset = EcgDataset(X_val, y_val)
+            test_dataset = EcgDataset(X_test, y_test)
 
-    # npy matrix with AUC values
-    auc = np.zeros(n_reps)
+            start = time.time()
+            # Create result folder for actual cv fold
+            path_results_fold = join(path_res, f"fold_{i_rep}")
+            if not os.path.exists(path_results_fold):
+                os.makedirs(path_results_fold)
 
-    # set results folder's path
-    path_res = get_path_results(parent_results_folder="results/splitting_method_3/" + "sample_" + str(n_samples) + "/",
-                                n=size)
+            # Save prints to a log file
+            old_stdout = sys.stdout
+            log_file = open(join(path_results_fold, "logfile.log"), "w")
+            sys.stdout = log_file
 
-    with open(path_res + "/config.json", 'w') as fp:
-        json.dump(config, fp)
+            # Print the total and single sets sizes
+            print("Total size in the experiment:", config["n_samples"])
+            print("# train samples: ", len(train_dataset), " , AF frac: ", sum(train_dataset.labels) / len(train_dataset))
+            print("# test samples: ", len(test_dataset), " , AF frac: ", sum(test_dataset.labels) / len(test_dataset))
+            print("# val samples: ", len(val_dataset), " , AF frac: ", sum(val_dataset.labels) / len(val_dataset))
 
-    for i_rep in range(n_reps):  # loop over folds
-        if i_rep % 10 == 0:
-            print(i_rep)
+            # Define data loaders for training and testing data in this fold
+            train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True,
+                                                       drop_last=True)
+            val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1024, shuffle=False)
+            test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1024, shuffle=False)
 
-        # Train-test split
-        X_train, X_test, y_train, y_test = train_test_split(data_sample,
-                                                            labels_sample,
-                                                            train_size=size,
-                                                            stratify=labels_sample,
-                                                            )
+            # Initialize model
+            model = GoodfellowNet(in_channels=1, len_input=X_train.shape[2], p_dropout=config["p_dropout"])
+            wp = 0.75  # Best .75
+            loss = WBCELoss(w_p=wp, w_n=1 - wp)
+            optimizer = torch.optim.AdamW(model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"])
+            lr_sched = CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=2, eta_min=0)
 
-        X_train, X_val, y_train, y_val = train_test_split(X_train,
-                                                          y_train,
-                                                          test_size=val_frac,
-                                                          stratify=y_train)
+            # -- TRAIN --
+            model = train(model, train_loader, val_loader, loss,
+                          optimizer, device, patience=config["patience"],
+                          path_res=path_results_fold, num_epochs=config["n_epochs"],
+                          scheduler=lr_sched)
 
-        train_dataset = EcgDataset(X_train, y_train, augment=augment, std_augm=std_augm)
-        val_dataset = EcgDataset(X_val, y_val)
-        test_dataset = EcgDataset(X_test, y_test)
+            # -- TEST --
+            predictions, labels_test = model_predictions(model, device, test_loader)
+            # save results and compute metrics
+            np.save(join(path_results_fold, "predictions_test"), predictions)
+            np.save(join(path_results_fold, "labels_test"), labels_test)
+            auc[i_rep] = roc_auc_score(labels_test, predictions)
 
-        # print(X_train[0, :5])
+            # writing logs to the log file
+            print("Elapsed time: ", time.time() - start)
+            sys.stdout = old_stdout
+            log_file.close()
 
-        start = time.time()
-        # Create result folder for actual cv fold
-        path_results_fold = path_res + "/CVfold_" + str(i_rep) + "/"
-        if not os.path.exists(path_results_fold):
-            os.makedirs(path_results_fold)
+        np.save(join(path_res, "auc_test"), auc)
 
-        # Save prints to a log file
-        old_stdout = sys.stdout
-        log_file = open(path_results_fold + "logfile.log", "w")
-        sys.stdout = log_file
+    print("total elapsed time:", time.time() - start_total)
 
-        # Print the total size to record it
-        print("Total size in the experiment:", n_samples)
 
-        print("# train samples: ", len(train_dataset), " , AF frac: ", sum(train_dataset.labels) / len(train_dataset))
-        print("# test samples: ", len(test_dataset), " , AF frac: ", sum(test_dataset.labels) / len(test_dataset))
-        print("# val samples: ", len(val_dataset), " , AF frac: ", sum(val_dataset.labels) / len(val_dataset))
-
-        # Define data loaders for training and testing data in this fold
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
-        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1024, shuffle=False)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1024, shuffle=False)
-
-        # -- Instantiate model, loss function and optimizer ---
-        # in_channels = [1, 96, 48, 32]
-        # out_channels = [96, 48, 32, 24]
-        # dilation_rate = [1, 4, 4, 6]
-        # kernel_size = [8, 6, 6, 4]
-        # max_pooling = [0, 0, 0, 16]
-        # stride = [1, 1, 1, 1, 1]
-        # ratio = 1.25
-        # num_layers = 1
-        # bidirectional = False
-        # many_to_many = False
-        # in_len = 1280
-        # wp = 0.75  # Best .75
-        #
-        # model = LstmNetwork(in_channels=in_channels,
-        #                     out_channels=out_channels,
-        #                     dilation=dilation_rate,
-        #                     kernel_size=kernel_size,
-        #                     max_pooling=max_pooling,
-        #                     stride=stride,
-        #                     ratio=ratio,
-        #                     num_layers=num_layers,
-        #                     many_to_many=many_to_many,
-        #                     bidirectional=bidirectional,
-        #                     in_len=in_len,
-        #                     p_dropout=p_dropout)
-
-        model = GoodfellowNet()
-
-        wp = 0.75  # Best .75
-        loss = WBCELoss(w_p=wp, w_n=1 - wp)
-        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
-        lr_sched = CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=2, eta_min=0)
-
-        # -- TRAIN --
-        model = train(model, train_loader, val_loader, loss,
-                      optimizer, device, patience=patience,
-                      path_res=path_results_fold, num_epochs=n_epochs,
-                      scheduler=lr_sched)
-
-        # -- TEST --
-        predictions, labels_test = model_predictions(model, device, test_loader)
-        # save results and compute metrics
-        np.save(path_results_fold + "predictions_test", predictions)
-        np.save(path_results_fold + "labels_test", labels_test)
-
-        auc[i_rep] = roc_auc_score(labels_test, predictions)
-
-        # writing logs to the log file
-        print("Elapsed time: ", time.time() - start)
-        sys.stdout = old_stdout
-        log_file.close()
-
-    np.save(path_res + "auc_test", auc)
-
-print("total elapsed time:", time.time() - start_total)
+if __name__ == '__main__':
+    main()
