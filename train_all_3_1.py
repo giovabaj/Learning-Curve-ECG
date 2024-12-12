@@ -101,7 +101,7 @@ def main():
             test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1024, shuffle=False)
 
             # Initialize model
-            model = GoodfellowNet(in_channels=1, len_input=X_train.shape[2], p_dropout=config["p_dropout"])
+            model = GoodfellowNet(in_channels=X_train.shape[1], len_input=X_train.shape[2], p_dropout=config["p_dropout"])
             wp = 0.75  # Best .75
             loss = WBCELoss(w_p=wp, w_n=1 - wp)
             optimizer = torch.optim.AdamW(model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"])
