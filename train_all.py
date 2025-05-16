@@ -27,6 +27,7 @@ def main():
     # Load the config file
     with open(args.config_path, "r") as file:
         config = yaml.safe_load(file)
+    shutil.copy(args.config_path, join(config["output_path"], "config.yaml"))  # Save config file to the results dir
 
     # Setting the computation device and seeds
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -49,8 +50,7 @@ def main():
     for i_size, size in enumerate(config["sizes"]):  # Loop over sizes
         print(f"--- {size} ---")
         auc = np.zeros(config["n_reps"])  # initialize npy array with AUC values
-        path_res = join(config["output_path"], f"sample_{config['n_samples']}", size)  # set results folder's path
-        shutil.copy(args.config_path, join(path_res, "config.yaml"))  # Save config file to the results directory
+        path_res = join(config["output_path"], size)  # set results folder's path
         for i_rep in range(config["n_reps"]):  # loop over repetitions
             if i_rep % 10 == 0:
                 print(f"\t{i_rep}")
