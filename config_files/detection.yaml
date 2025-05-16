@@ -1,0 +1,18 @@
+path_data: 'data/detection/ecg_data.npy'
+path_labels: 'data/detection/labels.npy'
+output_path: 'results/detection/'
+
+lr: 0.01
+patience: 100
+n_epochs: 1000
+n_reps: 100
+val_frac: 0.3
+augment: True
+std_augm: 0.0002
+batch_size: 32
+weight_decay: 0.05
+p_dropout: 0.3
+random_seed: 42
+
+n_samples: 1000
+sizes: [100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900]

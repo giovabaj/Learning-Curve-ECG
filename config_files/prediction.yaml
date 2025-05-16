@@ -1,0 +1,18 @@
+path_data: 'data/prediction/ecg_data.npy'
+path_labels: 'data/prediction/labels.npy'
+output_path: 'results/prediction/'
+
+lr: 0.01
+patience: 100
+n_epochs: 1000
+n_reps: 100
+val_frac: 0.3
+augment: True
+std_augm: 0.0002
+batch_size: 32
+weight_decay: 0.05
+p_dropout: 0.3
+random_seed: 42
+
+n_samples: 10000
+sizes: [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000]
