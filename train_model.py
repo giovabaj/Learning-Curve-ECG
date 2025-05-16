@@ -67,9 +67,9 @@ def validation_single_epoch(model: nn.Module, validation_loader: DataLoader, los
     return np.mean(np.array(losses)), roc_auc_score(np.array(y_true), np.array(y_score))
 
 
-def train(model: nn.Module, train_loader: DataLoader, validation_loader: DataLoader, loss: nn.Module,
-          optimizer: Optimizer, device: str, scheduler: LRScheduler = None, num_epochs: int = 50,
-          path_res: str = 'train_out/', patience: int = 5):
+def train_model(model: nn.Module, train_loader: DataLoader, validation_loader: DataLoader, loss: nn.Module,
+                optimizer: Optimizer, device: str, scheduler: LRScheduler = None, num_epochs: int = 50,
+                path_res: str = 'train_out/', patience: int = 5):
     """
     Trains a model over multiple epochs with early stopping and optional learning rate scheduling.
     :param model: The model to be trained.
