@@ -1,15 +1,16 @@
-from scipy.signal import resample
-import numpy as np
+import os
 from os.path import join
 import re
-import pandas as pd
 from tqdm import tqdm
-import wfdb
 from joblib import Parallel, delayed
+import numpy as np
+import pandas as pd
+from scipy.signal import resample
+import wfdb
 from utils import filter_ecgs
 
 
-root_path = 'data/detection/original_data/'  # Path to the folder with the data
+root_path = 'data/detection/original_data'  # Path to the folder with the data
 
 
 def read_paths():
@@ -107,7 +108,7 @@ def get_data(df,
     - ecg_time: duration in seconds of the signal to extract
     """
     # Extract paths
-    df = df[df['time'] == 10]  # keep only ECGs with 10 seconds length
+    # df = df[df['time'] == 10]  # keep only ECGs with 10 seconds length
     paths_af = list(df[df['AF'] == 1].path) + list(df[df['AFL'] == 1].path)
     paths_non_af = list(df[(df['AF'] == 0) & (df['AFL'] == 0)].path)
     labels = np.concatenate((np.ones(len(paths_af)), np.zeros(len(paths_non_af))))
@@ -123,8 +124,8 @@ def get_data(df,
     # Save data
     print('Saving data...')
     print(ecg_data.shape)
-    np.save(join(root_path, 'ecg_data'), ecg_data)
-    np.save(join(root_path, 'labels'), labels)
+    np.save(join(os.path.dirname(root_path), 'ecg_data'), ecg_data)
+    np.save(join(os.path.dirname(root_path), 'labels'), labels)
 
 
 def main():
