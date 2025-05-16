@@ -119,7 +119,7 @@ def get_data(df,
         signal, meta = wfdb.rdsamp(paths[i], channel_names=['I'])  # extract 1st channel of signal
         ecg_data[i, :] = resample(signal, n_points_resample, axis=0).astype('float32')[:, 0]
     # Filter signals
-    ecg_data = filter_ecgs(ecg_data, low_cut=0.67, high_cut=100, fs=target_fs, order=1)
+    ecg_data = filter_ecgs(ecg_data, low_cut=0.67, high_cut=50, fs=target_fs, order=1)
     # Save data
     print('Saving data...')
     print(ecg_data.shape)
