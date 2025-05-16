@@ -3,7 +3,8 @@
 Code to generate a learning curve for a convolutional neural network (CNN) model for ECG signal classification and prediction.
 
 ## Data 
-The dataset used for the detection prediction can be found [here](https://physionet.org/content/challenge-2020/1.0.2/). It should be downloaded and unzipped in the folder `data/detection/original_data/` for the rest of computations.
+The dataset used for the detection can be found [here](https://physionet.org/content/challenge-2020/1.0.2/). It should be downloaded and unzipped in the folder `data/detection/original_data/` for the rest of the computations.
+
 The dataset for the prediction task cannot be publicly shared.
 
 ## Reference 
