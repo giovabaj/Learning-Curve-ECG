@@ -1,0 +1,35 @@
+## 
+## external_script_changes.txt
+## Project: Sample Size Determination via Learning Curves for AI Models: 
+##          An application to Deep Learning Algorithms for Diagnostic and Prediction Tasks
+## Authors: The Società Italiana di Statistica Medica ed Epidemiologia Clinica
+##          Research Group on Machine Learning in Clinical Research - 
+##          subgroup on non-tabular data
+## Purpose: List of changes from the original Figueroa et al., 2012 and Dayimu 
+##          et al., 2024 scripts
+## Creation date: 10 October 2024
+## Last modification: 16 October 2024
+## 
+
+Modifications to Dayimu et al., 2024 script (file gp_nls_scripts.R)
+gp-functions:
+- gp_model: Modified to allow specification of weights
+            Modified to allow specification of number of chains, number of iterations,
+            number of burn-in iterations and thinning
+            Specified use of a mod_file with truncation of phi below at value 0.01
+            (gp_mod_trunc.txt)
+- predict_gp: modified so x_star can be specified by the user
+
+nls-functions:
+- nls_model: Modified in order to provide starting values
+- predict_nls: Modified in order to specify predicted points
+
+Modification to JAGS model file (file gp-mod_trunc.txt, required by gp-functions)
+- distribution of phi truncated so that lower bound >=0.01:
+  phi ~ dnorm(0, 0.1)T(0,) was changed to:
+  phi ~ dnorm(0, 0.1)T(0.01,)
+
+Modifications to Figueroa et al., 2012 script (file gp_nls_scripts.R)
+- FitModel: Increased upper bound of b from 10 to 30
+            Modified in order to print the estimated parameters
+            Modified in order to return a summary of the predicted values
