@@ -67,7 +67,7 @@ start<-c(a=0.01,b=1,c=-0.5) # starting values that can be used also with Dayimu 
 offset<-0 
 
 #This model is run to check whether the nls method works well
-i<-11
+i<-11 #number of data points to be used to fit the learning curve
 dat_check<-dat_class
 dat_check$w<-ifelse(row(dat_class[,1])<=i,1:i/i,NA) #Weights based on cardinality
 
